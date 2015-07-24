@@ -14,28 +14,30 @@ class Forecast(object):
         self.forecast = None
 
     def get_config_vars(self):
-        config = open(os.path.join('config.txt'), 'r')
-        lines = config.read().split('\n')
-        var = {}
-        for line in lines:
-            entry = []
-            for items in line.split('='):
-                entry.append(items.strip())
-            var.update(dict([entry]))
-
+        var = read_settings(api_key='None', zip_code='None')
         return var
 
 
     def get_api_key(self):
         var = self.get_config_vars()
-        if 'api_key' in var:
+        if var['api_key'] =='None':
+            self.api_key = input_api_key()
+            write_settings(api_key=self.api_key)
+        else:
             self.api_key = var['api_key']
+
+
+
 
 
     def get_zip_code(self):
         var = self.get_config_vars()
-        if 'zip_code' in var:
+        if var['zip_code']  == 'None':
+            self.zip_code = input_zip_code()
+            write_settings(zip_code=self.zip_code)
+        else:
             self.zip_code = var['zip_code']
+
 
 
     def set_request_link(self):
@@ -46,7 +48,9 @@ class Forecast(object):
             self.get_zip_code()
 
         self.api_link = 'https://api.wunderground.com/api/' + \
-                        self.api_key + '/forecast/q/' + self.zip_code + '.json'
+                        str(self.api_key) + '/forecast/q/' + \
+                        str(self.zip_code) + '.json'
+
 
     def get_forecast(self):
         if self.api_link == None:
@@ -55,6 +59,8 @@ class Forecast(object):
 
         self.json = requests.get(self.api_link).json()
         self.response = self.json['response']
+        if 'error' in self.response.keys():
+            raise ValueError('api_key or zip_code are incorrect')
         if 'forecast' in self.json.keys():
             self.forecast = self.json['response']
         else:
@@ -69,6 +75,68 @@ class Forecast(object):
         period_data = self.get_period_forecast(period)
         high = period_data['high']['fahrenheit']
         return 'High: ' + str(high) + 'F'
+
+
+
+
+
+
+
+def write_settings(api_key='None', zip_code='None'):
+    settings = read_settings(api_key=api_key, zip_code=zip_code)
+
+    cfile = os.path.join(os.getenv("HOME"), '.weather', 'config.txt')
+
+    if not os.path.isdir(os.path.join(os.getenv("HOME"), '.weather')):
+        os.mkdir(os.path.join(os.getenv("HOME"), '.weather'))
+
+    if not os.path.isfile(cfile):
+        with open(cfile, 'w') as f:
+            f.write('')
+
+    with open(cfile, 'w') as f:
+        for item in settings.keys():
+            f.write(item + '=' + str(settings[item]) + '\n')
+
+
+
+
+def read_settings(api_key='None', zip_code='None'):
+
+    settings = {'api_key' : api_key, 'zip_code' : zip_code}
+
+    cfile = os.path.join(os.getenv("HOME"), '.weather', 'config.txt')
+
+    if os.path.isfile(cfile):
+        with open(cfile, 'r') as f:
+            readlines = f.readlines()
+
+        for line in readlines:
+            items = line.strip('\n').split('=')
+
+            if items[0] in settings.keys():
+                settings.update({items[0]: items[1]})
+
+    if api_key != 'None':
+        settings['api_key'] = api_key
+    if zip_code != 'None':
+        settings['zip_code'] = zip_code
+
+    return settings
+
+
+
+def input_api_key():
+    api_key = raw_input("Please enter your wunderground.com api key: ")
+    return api_key
+
+def input_zip_code():
+    zip_code = raw_input("Please enter your zip code: ")
+    return zip_code
+
+
+
+
 
 def main():
     f = Forecast()
